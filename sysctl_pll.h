@@ -39,6 +39,8 @@
 
 #ifndef SYSCTL_PLL_H_
 #define SYSCTL_PLL_H_
+#include <stdint.h>
+#include <stdbool.h>
 
 uint32_t SysCtlFrequencyGet(uint32_t ui32Xtal);
 
