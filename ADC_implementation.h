@@ -12,6 +12,13 @@
 #include "driverlib/adc.h"
 #include "inc/tm4c1294ncpdt.h"
 #include <stdint.h>
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+#include "driverlib/timer.h"
+#include "driverlib/interrupt.h"
+#include "driverlib/adc.h"
+#include "inc/hw_memmap.h"
+#include "inc/hw_ints.h"
 
 // initialize ADC1
 void ADC1Init(void);

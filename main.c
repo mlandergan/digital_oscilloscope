@@ -16,6 +16,7 @@
 #include "Crystalfontz128x128_ST7735.h"
 #include <stdio.h>
 #include "buttons.h"
+#include "ADC_implementation.h"
 
 uint32_t gSystemClock; // [Hz] system clock frequency
 volatile uint32_t gTime = 8345; // time in hundredths of a second
@@ -68,6 +69,7 @@ int main(void)
     tRectangle rectFullScreen = {0, 0, GrContextDpyWidthGet(&sContext)-1, GrContextDpyHeightGet(&sContext)-1};
 
     ButtonInit();
+    ADC1Init();
     IntMasterEnable();
 
     while (true) {
