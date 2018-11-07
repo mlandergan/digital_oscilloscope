@@ -53,7 +53,8 @@ void ADC_ISR(void)
         ADC1_OSTAT_R = ADC_OSTAT_OV0;   // clear overflow condition
     }
 
-    ADCSequenceDataGet(ADC1_BASE, 0, &ADC_counts);// retrieve ADC counts data
+    //ADCSequenceDataGet(ADC1_BASE, 0, &ADC_counts);// retrieve ADC counts data
+    ADC_counts = ADC1_SSFIFO0_R;
 
     gADCBuffer[
                gADCBufferIndex = ADC_BUFFER_WRAP(gADCBufferIndex + 1)

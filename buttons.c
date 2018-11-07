@@ -48,19 +48,19 @@ void ButtonInit(void)
     GPIOPinTypeGPIOInput(GPIO_PORTJ_BASE, GPIO_PIN_0 | GPIO_PIN_1);
     GPIOPadConfigSet(GPIO_PORTJ_BASE, GPIO_PIN_0 | GPIO_PIN_1, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
 
-    // GPIO PH1 EK-TM4C1294XL BOOSTXL-EDU button 1
+    // GPIO PH1 Button 1
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOH);
     GPIOPinTypeGPIOInput(GPIO_PORTH_BASE, GPIO_PIN_1);
     GPIOPadConfigSet(GPIO_PORTH_BASE, GPIO_PIN_1, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
 
-    // GPIO PK6 EK-TM4C1294XL BOOSTXL-EDU button 2
+    // GPIO PK6, Button 2
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOK);
     GPIOPinTypeGPIOInput(GPIO_PORTK_BASE, GPIO_PIN_6);
-    GPIOPadConfigSet(GPIO_PORTK_BASE, GPIO_PIN_6, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+    GPIOPadConfigSet(GPIO_PORTK_BASE,GPIO_PIN_6, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
 
-    // GPIO PD4 EK-TM4C1294XL BOOSTXL-EDU select button (joystick toggle)
+    // GPIO PD4 Joystick Toggle
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
-    GPIOPinTypeGPIOInput(GPIO_PORTD_BASE, GPIO_PIN_4);
+    GPIOPinTypeGPIOInput(GPIO_PORTD_BASE,GPIO_PIN_4);
     GPIOPadConfigSet(GPIO_PORTD_BASE, GPIO_PIN_4, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
 
     // analog input AIN13, at GPIO PD2 = BoosterPack Joystick HOR(X)
@@ -89,27 +89,27 @@ void ButtonInit(void)
 // update the debounced button state gButtons
 void ButtonDebounce(uint32_t buttons)
 {
-	int32_t i, mask;
-	static int32_t state[BUTTON_COUNT]; // button state: 0 = released
-									    // BUTTON_PRESSED_STATE = pressed
-									    // in between = previous state
-	for (i = 0; i < BUTTON_COUNT; i++) {
-		mask = 1 << i;
-		if (buttons & mask) {
-			state[i] += BUTTON_STATE_INCREMENT;
-			if (state[i] >= BUTTON_PRESSED_STATE) {
-				state[i] = BUTTON_PRESSED_STATE;
-				gButtons |= mask; // update debounced button state
-			}
-		}
-		else {
-			state[i] -= BUTTON_STATE_DECREMENT;
-			if (state[i] <= 0) {
-				state[i] = 0;
-				gButtons &= ~mask;
-			}
-		}
-	}
+    int32_t i, mask;
+    static int32_t state[BUTTON_COUNT]; // button state: 0 = released
+                                        // BUTTON_PRESSED_STATE = pressed
+                                        // in between = previous state
+    for (i = 0; i < BUTTON_COUNT; i++) {
+        mask = 1 << i;
+        if (buttons & mask) {
+            state[i] += BUTTON_STATE_INCREMENT;
+            if (state[i] >= BUTTON_PRESSED_STATE) {
+                state[i] = BUTTON_PRESSED_STATE;
+                gButtons |= mask; // update debounced button state
+            }
+        }
+        else {
+            state[i] -= BUTTON_STATE_DECREMENT;
+            if (state[i] <= 0) {
+                state[i] = 0;
+                gButtons &= ~mask;
+            }
+        }
+    }
 }
 
 // sample joystick and convert to button presses
@@ -160,23 +160,7 @@ void ButtonISR(void) {
 
     // read hardware button state
     uint32_t gpio_buttons =
-            (~GPIOPinRead(GPIO_PORTJ_BASE, 0xff) & (GPIO_PIN_1 | GPIO_PIN_0));
-    /*
-    |
-            (~GPIOPinRead(GPIO_PORTH_BASE, 0xff) & (GPIO_PIN_1) << 1) |
-            (~GPIOPinRead(GPIO_PORTK_BASE, 0xff) & (GPIO_PIN_6) >> 3) |
-            (~GPIOPinRead(GPIO_PORTD_BASE, 0xff) & (GPIO_PIN_4));
-            */
-
-    gpio_buttons = gpio_buttons |
-            (~GPIOPinRead(GPIO_PORTH_BASE, 0xff) & (GPIO_PIN_1) << 1);  // GPIO PH1 EK-TM4C1294XL BOOSTXL-EDU button 1
-
-    gpio_buttons = gpio_buttons |
-             (~GPIOPinRead(GPIO_PORTK_BASE, 0xff) & (GPIO_PIN_6) >> 3); // GPIO PK6 EK-TM4C1294XL BOOSTXL-EDU button 2
-
-    gpio_buttons = gpio_buttons |
-             (~GPIOPinRead(GPIO_PORTD_BASE, 0xff) & (GPIO_PIN_4)); // GPIO PD6 EK-TM4C1294XL BOOSTXL-EDU select button (joystick toggle)
-
+        (~GPIOPinRead(GPIO_PORTJ_BASE, 0xff) & (GPIO_PIN_1 | GPIO_PIN_0) | ((~GPIOPinRead(GPIO_PORTH_BASE, 0xff) & GPIO_PIN_1) << 1) | ((~GPIOPinRead(GPIO_PORTK_BASE, 0xff) & GPIO_PIN_6) >> 3) | (~GPIOPinRead(GPIO_PORTD_BASE, 0Xff) & GPIO_PIN_4));
 
     uint32_t old_buttons = gButtons;    // save previous button state
     ButtonDebounce(gpio_buttons);       // Run the button debouncer. The result is in gButtons.
@@ -187,9 +171,8 @@ void ButtonISR(void) {
     static bool tic = false;
     static bool running = true;
 
-    if(presses & GPIO_PIN_1){ // check if button 2 is activate
-        gTime = 0; // reset timer to 0
-    }
+    if (presses & GPIO_PIN_1)
+        gTime = 0;
 
     if (presses & 1) { // EK-TM4C1294XL button 1 pressed
         running = !running;
