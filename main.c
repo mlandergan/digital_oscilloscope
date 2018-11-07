@@ -17,10 +17,24 @@
 #include <stdio.h>
 #include "buttons.h"
 #include "ADC_implementation.h"
+#include "limits.h"
+
+#define ADC_BUFFER_SIZE 2048                             // size must be a power of 2
+
+volatile int32_t gADCBufferIndex = ADC_BUFFER_SIZE - 1;  // latest sample index
+volatile uint32_t ADC_counts = 0;
+volatile uint16_t gADCBuffer[ADC_BUFFER_SIZE];           // circular buffer
+
+// Oscilloscope variables
+int32_t triggerIndex;
+uint32_t windowWidth = 2000;
+uint32_t triggerLevel = 500; // Some value in ADC counts that will govern what part of the waveform is in the center of the screen
+uint16_t scopeBuffer[ADC_BUFFER_SIZE];
 
 uint32_t gSystemClock; // [Hz] system clock frequency
 volatile uint32_t gTime = 8345; // time in hundredths of a second
 int binary_conversion(int num);
+void triggerWindow(void);
 
 int binary_conversion(int num){
     if(num==0){
@@ -60,6 +74,8 @@ int main(void)
     IntMasterEnable();
 
 
+
+
     while (true) {
         GrContextForegroundSet(&sContext, ClrBlack);
         GrRectFill(&sContext, &rectFullScreen); // fill screen with black
@@ -78,4 +94,24 @@ int main(void)
         GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
         GrFlush(&sContext); // flush the frame buffer to the LCD
     }
+}
+
+void triggerWindow(){
+    triggerIndex = gADCBufferIndex - windowWidth/2;
+    uint16_t prevSample = gADCBuffer[triggerIndex];
+    uint16_t currSample = INT_MAX;
+    int i;
+    for(i=triggerIndex; i < (ADC_BUFFER_SIZE/2); i--){
+
+        currSample = gADCBuffer[triggerIndex];
+
+        if (prevSample > triggerLevel && currSample < triggerLevel){
+            int z;
+            for(z = (i-(windowWidth/2)); z < (i+(windowWidth/2)); z++){
+                scopeBuffer[z] = gADCBuffer[z];
+            }
+            break;
+        }
+
+     }
 }

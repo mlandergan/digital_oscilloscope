@@ -6,16 +6,6 @@
  */
 #include "ADC_implementation.h"
 
-// ADC ISR
-#define ADC_BUFFER_SIZE 2048                             // size must be a power of 2
-#define ADC_BUFFER_WRAP(i) ((i) & (ADC_BUFFER_SIZE - 1)) // index wrapping macro
-volatile int32_t gADCBufferIndex = ADC_BUFFER_SIZE - 1;  // latest sample index
-volatile uint16_t gADCBuffer[ADC_BUFFER_SIZE];           // circular buffer
-volatile uint32_t gADCErrors;                       // number of missed ADC deadlines
-#define ADC_SAMPLING_RATE 1000000   // [samples/sec] desired ADC sampling rate
-#define CRYSTAL_FREQUENCY 25000000  // [Hz] crystal oscillator frequency used to calculate clock rates
-volatile uint32_t ADC_counts = 0;
-
 void ADC1Init(void)
 {
     // initialize ADC1 sampling sequence
