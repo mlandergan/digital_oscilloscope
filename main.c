@@ -18,8 +18,15 @@
 #include "buttons.h"
 #include "ADC_implementation.h"
 #include "limits.h"
+#include <math.h>
 
 #define ADC_BUFFER_SIZE 2048                             // size must be a power of 2
+#define VIN_RANGE 3.3
+#define ADC_BITS 12
+#define ADC_OFFSET 380 // volt
+#define PIXELS_PER_DIV 20
+
+uint16_t fVoltsPerDiv = 2; // Volts
 
 volatile int32_t gADCBufferIndex = ADC_BUFFER_SIZE - 1;  // latest sample index
 volatile uint32_t ADC_counts = 0;
@@ -62,9 +69,22 @@ int main(void)
     GrContextInit(&sContext, &g_sCrystalfontz128x128); // Initialize the grlib graphics context
     GrContextFontSet(&sContext, &g_sFontFixed6x8); // select font
 
+    tContext backgroundContext;
+    GrContextInit(&backgroundContext, &g_sCrystalfontz128x128); // Initialize the grlib graphics context
+    GrContextFontSet(&backgroundContext, &g_sFontFixed6x8); // select font
+    GrContextForegroundSet(&backgroundContext, 0xFF);
+
+    int i;
+    for (i=0; i<7; i++){
+        GrLineDrawV(&backgroundContext, i * (LCD_HORIZONTAL_MAX/7), 0, LCD_VERTICAL_MAX);
+        GrLineDrawH(&backgroundContext, i * (LCD_VERTICAL_MAX/7), 0, LCD_HORIZONTAL_MAX);
+        GrFlush(&backgroundContext); // flush the frame buffer to the LCD
+    }
+
     uint32_t time;  // local copy of gTime
     char str[50];   // string buffer
     char buttonBuff[50];
+    char frequencyBuff[50];
     // full-screen rectangle
     tRectangle rectFullScreen = {0, 0, GrContextDpyWidthGet(&sContext)-1, GrContextDpyHeightGet(&sContext)-1};
 
@@ -84,15 +104,24 @@ int main(void)
         uint32_t fracSecond = time % 100;
         uint32_t second = (time / 100) % 60;
         uint32_t min = (time /100) / 60;
+//        triggerWindow();
 
         snprintf(str, sizeof(str), "Time = %02u:%02u:%02u", min,second,fracSecond); // convert time to string
         int bin = binary_conversion(gButtons); // convert gButtons into binary
         snprintf(buttonBuff, sizeof(buttonBuff), "Button = %09u",bin);
 
-        GrContextForegroundSet(&sContext, ClrYellow); // yellow text
-        GrStringDraw(&sContext, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
-        GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
-        GrFlush(&sContext); // flush the frame buffer to the LCD
+         // sample -> scopeBuffer
+        uint16_t sample = gADCBuffer[8];
+        float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
+        float vin = (float)sample *(3.3/4096.0);
+        int y = LCD_VERTICAL_MAX/2- (int)roundf(fScale * ((int)sample - ADC_OFFSET));
+        snprintf(frequencyBuff, sizeof(frequencyBuff), "Sample = %f", vin);
+
+//        GrContextForegroundSet(&sContext, ClrYellow); // yellow text
+//        GrStringDraw(&sContext, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
+//        GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
+//        GrStringDraw(&sContext, frequencyBuff, /*length*/ -1, /*x*/ 0, /*y*/ 80, /*opaque*/ false);
+//        GrFlush(&sContext); // flush the frame buffer to the LCD
     }
 }
 
@@ -103,7 +132,7 @@ void triggerWindow(){
     int i;
     for(i=triggerIndex; i < (ADC_BUFFER_SIZE/2); i--){
 
-        currSample = gADCBuffer[triggerIndex];
+        currSample = gADCBuffer[i];
 
         if (prevSample > triggerLevel && currSample < triggerLevel){
             int z;
