@@ -33,15 +33,16 @@ volatile uint32_t ADC_counts = 0;
 volatile uint16_t gADCBuffer[ADC_BUFFER_SIZE];           // circular buffer
 
 // Oscilloscope variables
-int32_t triggerIndex;
+uint32_t triggerIndex;
 uint32_t windowWidth = 2000;
-uint32_t triggerLevel = 500; // Some value in ADC counts that will govern what part of the waveform is in the center of the screen
+uint32_t triggerLevel = 2048; // (1.63/3.3) * 4096 = 2048 ADC ticks
 uint16_t scopeBuffer[ADC_BUFFER_SIZE];
 
 uint32_t gSystemClock; // [Hz] system clock frequency
 volatile uint32_t gTime = 8345; // time in hundredths of a second
 int binary_conversion(int num);
 void triggerWindow(void);
+void render(char* buttonBuff, char* frequencyBuff, tContext sContext);
 
 int binary_conversion(int num){
     if(num==0){
@@ -69,17 +70,6 @@ int main(void)
     GrContextInit(&sContext, &g_sCrystalfontz128x128); // Initialize the grlib graphics context
     GrContextFontSet(&sContext, &g_sFontFixed6x8); // select font
 
-    tContext backgroundContext;
-    GrContextInit(&backgroundContext, &g_sCrystalfontz128x128); // Initialize the grlib graphics context
-    GrContextFontSet(&backgroundContext, &g_sFontFixed6x8); // select font
-    GrContextForegroundSet(&backgroundContext, 0xFF);
-
-    int i;
-    for (i=0; i<7; i++){
-        GrLineDrawV(&backgroundContext, i * (LCD_HORIZONTAL_MAX/7), 0, LCD_VERTICAL_MAX);
-        GrLineDrawH(&backgroundContext, i * (LCD_VERTICAL_MAX/7), 0, LCD_HORIZONTAL_MAX);
-        GrFlush(&backgroundContext); // flush the frame buffer to the LCD
-    }
 
     uint32_t time;  // local copy of gTime
     char str[50];   // string buffer
@@ -93,8 +83,7 @@ int main(void)
     ADC1Init();
     IntMasterEnable();
 
-
-
+    GrContextFontSet(&sContext, &g_sFontFixed6x8); // select font
 
     while (true) {
         GrContextForegroundSet(&sContext, ClrBlack);
@@ -104,29 +93,25 @@ int main(void)
         uint32_t fracSecond = time % 100;
         uint32_t second = (time / 100) % 60;
         uint32_t min = (time /100) / 60;
-//        triggerWindow();
+        triggerWindow();
 
-        snprintf(str, sizeof(str), "Time = %02u:%02u:%02u", min,second,fracSecond); // convert time to string
+       // snprintf(str, sizeof(str), "Time = %02u:%02u:%02u", min,second,fracSecond); // convert time to string
         int bin = binary_conversion(gButtons); // convert gButtons into binary
         snprintf(buttonBuff, sizeof(buttonBuff), "Button = %09u",bin);
 
          // sample -> scopeBuffer
-        uint16_t sample = gADCBuffer[8];
+        uint16_t sample = scopeBuffer[8];
         float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
         float vin = (float)sample *(3.3/4096.0);
         int y = LCD_VERTICAL_MAX/2- (int)roundf(fScale * ((int)sample - ADC_OFFSET));
         snprintf(frequencyBuff, sizeof(frequencyBuff), "Sample = %f", vin);
 
-//        GrContextForegroundSet(&sContext, ClrYellow); // yellow text
-//        GrStringDraw(&sContext, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
-//        GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
-//        GrStringDraw(&sContext, frequencyBuff, /*length*/ -1, /*x*/ 0, /*y*/ 80, /*opaque*/ false);
-//        GrFlush(&sContext); // flush the frame buffer to the LCD
+        render(&buttonBuff, &frequencyBuff, sContext);
     }
 }
 
 void triggerWindow(){
-    triggerIndex = gADCBufferIndex - windowWidth/2;
+    triggerIndex = gADCBufferIndex - (windowWidth/2);
     uint16_t prevSample = gADCBuffer[triggerIndex];
     uint16_t currSample = INT_MAX;
     int i;
@@ -141,6 +126,26 @@ void triggerWindow(){
             }
             break;
         }
-
+        prevSample = currSample;
      }
 }
+
+void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
+
+    GrContextForegroundSet(&sContext, 0xFF);
+
+    int i;
+    for (i=0; i<7; i++){
+        GrLineDrawV(&sContext, i * ((LCD_HORIZONTAL_MAX/7)) + (LCD_HORIZONTAL_MAX/14), 0, LCD_VERTICAL_MAX);
+        GrLineDrawH(&sContext, 0, LCD_HORIZONTAL_MAX, i * (LCD_VERTICAL_MAX/7)+ (LCD_HORIZONTAL_MAX/14));
+    }
+
+    GrContextForegroundSet(&sContext, ClrYellow); // yellow text
+//        GrStringDraw(&scopeBuffer, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
+    GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
+    GrStringDraw(&sContext, frequencyBuff, /*length*/ -1, /*x*/ 0, /*y*/ 80, /*opaque*/ false);
+    GrFlush(&sContext); // flush the frame buffer to the LCD
+
+}
+
+
