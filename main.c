@@ -25,18 +25,23 @@
 #define ADC_BITS 12
 #define ADC_OFFSET 380 // volt
 #define PIXELS_PER_DIV 20
+#define ADC_BUFFER_WRAP(i) ((i) & (ADC_BUFFER_SIZE - 1)) // index wrapping macro
+#define FIFO_SIZE 11        // FIFO capacity is 1 item fewer
+
+volatile char fifo[FIFO_SIZE];  // FIFO storage array
+volatile int fifo_head = 0; // index of the first item in the FIFO
+volatile int fifo_tail = 0; // index one step past the last item
 
 uint16_t fVoltsPerDiv = 2; // Volts
-
 volatile int32_t gADCBufferIndex = ADC_BUFFER_SIZE - 1;  // latest sample index
 volatile uint32_t ADC_counts = 0;
 volatile uint16_t gADCBuffer[ADC_BUFFER_SIZE];           // circular buffer
 
 // Oscilloscope variables
 uint32_t triggerIndex;
-uint32_t windowWidth = 2000;
+uint32_t windowWidth = 128;
 uint32_t triggerLevel = 2048; // (1.63/3.3) * 4096 = 2048 ADC ticks
-uint16_t scopeBuffer[ADC_BUFFER_SIZE];
+uint16_t scopeBuffer[128];
 
 uint32_t gSystemClock; // [Hz] system clock frequency
 volatile uint32_t gTime = 8345; // time in hundredths of a second
@@ -96,54 +101,75 @@ int main(void)
         triggerWindow();
 
        // snprintf(str, sizeof(str), "Time = %02u:%02u:%02u", min,second,fracSecond); // convert time to string
-        int bin = binary_conversion(gButtons); // convert gButtons into binary
-        snprintf(buttonBuff, sizeof(buttonBuff), "Button = %09u",bin);
 
-         // sample -> scopeBuffer
-        uint16_t sample = scopeBuffer[8];
-        float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
-        float vin = (float)sample *(3.3/4096.0);
-        int y = LCD_VERTICAL_MAX/2- (int)roundf(fScale * ((int)sample - ADC_OFFSET));
-        snprintf(frequencyBuff, sizeof(frequencyBuff), "Sample = %f", vin);
+//        int bin = binary_conversion(gButtons); // convert gButtons into binary
+//        snprintf(buttonBuff, sizeof(buttonBuff), "Button = %09u",bin);
+//
+//         // sample -> scopeBuffer
+//        uint16_t sample = gADCBuffer[8];
+//        float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
+//        float vin = (float)sample *(3.3/4096.0);
+//        int y = LCD_VERTICAL_MAX/2- (int)roundf(fScale * ((int)sample - ADC_OFFSET));
+//        snprintf(frequencyBuff, sizeof(frequencyBuff), "Sample = %f", vin);
 
         render(&buttonBuff, &frequencyBuff, sContext);
     }
 }
 
+
 void triggerWindow(){
-    triggerIndex = gADCBufferIndex - (windowWidth/2);
+    triggerIndex = ADC_BUFFER_WRAP(gADCBufferIndex - (windowWidth/2));
     uint16_t prevSample = gADCBuffer[triggerIndex];
     uint16_t currSample = INT_MAX;
-    int i;
-    for(i=triggerIndex; i < (ADC_BUFFER_SIZE/2); i--){
+    int counts = 0;
 
-        currSample = gADCBuffer[i];
+    // search for trigger
+    while((gADCBuffer[triggerIndex] != triggerLevel)){
 
-        if (prevSample > triggerLevel && currSample < triggerLevel){
-            int z;
-            for(z = (i-(windowWidth/2)); z < (i+(windowWidth/2)); z++){
-                scopeBuffer[z] = gADCBuffer[z];
-            }
+        currSample = gADCBuffer[triggerIndex];
+
+        if(counts == (ADC_BUFFER_SIZE/2) || (prevSample > triggerLevel && currSample <= triggerLevel)){
             break;
         }
+
         prevSample = currSample;
-     }
+        triggerIndex = ADC_BUFFER_WRAP(triggerIndex--);
+        counts += 1;
+    }
+
+    int currIndex;
+    int ADCIndex = 0;
+    for(currIndex = 0; currIndex < 128; currIndex++){
+        ADCIndex = triggerIndex-64 + currIndex;
+        scopeBuffer[currIndex] = gADCBuffer[ADCIndex];
+    }
 }
+
+
 
 void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
 
     GrContextForegroundSet(&sContext, 0xFF);
-
     int i;
     for (i=0; i<7; i++){
         GrLineDrawV(&sContext, i * ((LCD_HORIZONTAL_MAX/7)) + (LCD_HORIZONTAL_MAX/14), 0, LCD_VERTICAL_MAX);
         GrLineDrawH(&sContext, 0, LCD_HORIZONTAL_MAX, i * (LCD_VERTICAL_MAX/7)+ (LCD_HORIZONTAL_MAX/14));
     }
 
-    GrContextForegroundSet(&sContext, ClrYellow); // yellow text
-//        GrStringDraw(&scopeBuffer, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
-    GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
-    GrStringDraw(&sContext, frequencyBuff, /*length*/ -1, /*x*/ 0, /*y*/ 80, /*opaque*/ false);
+    GrContextForegroundSet(&sContext, ClrRed); // yellow text
+    float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
+
+    int x;
+    for(x=0; x < windowWidth; x++){
+        float vin = (float)scopeBuffer[x] *(3.3/4096.0);
+        int y = LCD_VERTICAL_MAX/2- (int)roundf(fScale * ((int)scopeBuffer[x] - ADC_OFFSET));
+        GrLineDrawV(&sContext, x, y, y+1);
+    }
+
+//    GrContextForegroundSet(&sContext, ClrYellow); // yellow text
+////        GrStringDraw(&scopeBuffer, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
+//    GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
+//    GrStringDraw(&sContext, frequencyBuff, /*length*/ -1, /*x*/ 0, /*y*/ 80, /*opaque*/ false);
     GrFlush(&sContext); // flush the frame buffer to the LCD
 
 }

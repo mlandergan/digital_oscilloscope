@@ -18,6 +18,8 @@
 #include "sysctl_pll.h"
 #include "buttons.h"
 
+#define FIFO_SIZE 11        // FIFO capacity is 1 item fewer
+
 // public globals
 volatile uint32_t gButtons = 0; // debounced button state, one per bit in the lowest bits
                                 // button is pressed if its bit is 1, not pressed if 0
@@ -27,6 +29,41 @@ uint32_t gADCSamplingRate;      // [Hz] actual ADC sampling rate
 // imported globals
 extern uint32_t gSystemClock;   // [Hz] system clock frequency
 extern volatile uint32_t gTime; // time in hundredths of a second
+extern volatile char fifo[FIFO_SIZE];  // FIFO storage array
+extern volatile int fifo_head; // index of the first item in the FIFO
+extern volatile int fifo_tail; // index one step past the last item
+
+// put data into the FIFO, skip if full
+// returns 1 on success, 0 if FIFO was full
+int fifo_put(char data)
+{
+    int new_tail = fifo_tail + 1;
+    if (new_tail >= FIFO_SIZE) new_tail = 0; // wrap around
+    if (fifo_head != new_tail) {    // if the FIFO is not full
+        fifo[fifo_tail] = data;     // store data into the FIFO
+        fifo_tail = new_tail;       // advance FIFO tail index
+        return 1;                   // success
+    }
+    return 0;   // full
+}
+
+// get data from the FIFO
+// returns 1 on success, 0 if FIFO was empty
+int fifo_get(char *data)
+{
+    if (fifo_head != fifo_tail) {   // if the FIFO is not empty
+        *data = fifo[fifo_head];    // read data from the FIFO
+//        IntMasterDisable();
+        fifo_head++;                // advance FIFO head index
+//        delay_us(1000);
+        if (fifo_head >= FIFO_SIZE) fifo_head = 0; // wrap around
+//        IntMasterEnable();
+        return 1;                   // success
+    }
+    return 0;   // empty
+}
+
+
 
 // initialize all button and joystick handling hardware
 void ButtonInit(void)
