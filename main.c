@@ -31,6 +31,7 @@
 volatile char fifo[FIFO_SIZE];  // FIFO storage array
 volatile int fifo_head = 0; // index of the first item in the FIFO
 volatile int fifo_tail = 0; // index one step past the last item
+int risingEdge = 0; // TODO: make this be read from button
 
 uint16_t fVoltsPerDiv = 2; // Volts
 volatile int32_t gADCBufferIndex = ADC_BUFFER_SIZE - 1;  // latest sample index
@@ -128,10 +129,16 @@ void triggerWindow(){
 
         currSample = gADCBuffer[triggerIndex];
 
-        if(counts == (ADC_BUFFER_SIZE/2) || (prevSample > triggerLevel && currSample <= triggerLevel)){
-            break;
+        if(risingEdge){
+            if(counts == (ADC_BUFFER_SIZE/2) || (prevSample > triggerLevel && currSample <= triggerLevel)){
+                break;
+            }
         }
-
+        else{
+            if(counts == (ADC_BUFFER_SIZE/2) || (prevSample < triggerLevel && currSample >= triggerLevel)){
+                break;
+            }
+        }
         prevSample = currSample;
         triggerIndex = ADC_BUFFER_WRAP(triggerIndex--);
         counts += 1;
@@ -144,8 +151,6 @@ void triggerWindow(){
         scopeBuffer[currIndex] = gADCBuffer[ADCIndex];
     }
 }
-
-
 
 void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
 

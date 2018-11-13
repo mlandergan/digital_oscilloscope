@@ -35,7 +35,7 @@ extern volatile int fifo_tail; // index one step past the last item
 
 // put data into the FIFO, skip if full
 // returns 1 on success, 0 if FIFO was full
-int fifo_put(char data)
+int fifo_put(uint32_t data)
 {
     int new_tail = fifo_tail + 1;
     if (new_tail >= FIFO_SIZE) new_tail = 0; // wrap around
@@ -49,7 +49,7 @@ int fifo_put(char data)
 
 // get data from the FIFO
 // returns 1 on success, 0 if FIFO was empty
-int fifo_get(char *data)
+int fifo_get(uint32_t *data)
 {
     if (fifo_head != fifo_tail) {   // if the FIFO is not empty
         *data = fifo[fifo_head];    // read data from the FIFO
@@ -204,6 +204,8 @@ void ButtonISR(void) {
     ButtonReadJoystick();               // Convert joystick state to button presses. The result is in gButtons.
     uint32_t presses = ~old_buttons & gButtons;   // detect button presses (transitions from not pressed to pressed)
     presses |= ButtonAutoRepeat();      // autorepeat presses if a button is held long enough
+
+    fifo_put(presses);
 
     static bool tic = false;
     static bool running = true;

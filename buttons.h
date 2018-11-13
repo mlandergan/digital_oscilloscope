@@ -39,8 +39,8 @@ extern volatile uint32_t gButtons;	// debounced button state, one per bit in the
 extern uint32_t gJoystick[2];       // joystick coordinates
 extern uint32_t gADCSamplingRate;   // [Hz] actual ADC sampling rate
 
-int fifo_put(char data);
-int fifo_get(char *data);
+int fifo_put(uint32_t data);
+int fifo_get(uint32_t *data);
 
 // initialize all button and joystick handling hardware
 void ButtonInit(void);
