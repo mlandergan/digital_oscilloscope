@@ -54,9 +54,9 @@ int fifo_get(uint32_t *data)
     if (fifo_head != fifo_tail) {   // if the FIFO is not empty
         *data = fifo[fifo_head];    // read data from the FIFO
 //        IntMasterDisable();
-        fifo_head++;                // advance FIFO head index
 //        delay_us(1000);
         if (fifo_head >= FIFO_SIZE) fifo_head = 0; // wrap around
+        else fifo_head++;                // advance FIFO head index
 //        IntMasterEnable();
         return 1;                   // success
     }

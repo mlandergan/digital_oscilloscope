@@ -23,17 +23,18 @@
 #define ADC_BUFFER_SIZE 2048                             // size must be a power of 2
 #define VIN_RANGE 3.3
 #define ADC_BITS 12
-#define ADC_OFFSET 380 // volt
+#define ADC_OFFSET 2048 // ticks
 #define PIXELS_PER_DIV 20
 #define ADC_BUFFER_WRAP(i) ((i) & (ADC_BUFFER_SIZE - 1)) // index wrapping macro
 #define FIFO_SIZE 11        // FIFO capacity is 1 item fewer
 
-volatile char fifo[FIFO_SIZE];  // FIFO storage array
+volatile uint32_t fifo[FIFO_SIZE];  // FIFO storage array
 volatile int fifo_head = 0; // index of the first item in the FIFO
 volatile int fifo_tail = 0; // index one step past the last item
-int risingEdge = 0; // TODO: make this be read from button
 
-uint16_t fVoltsPerDiv = 2; // Volts
+bool risingEdge = true; // TODO: make this be read from button
+uint16_t fVoltsPerDiv = 2; // Volts TODO: make this be adjusted by button
+
 volatile int32_t gADCBufferIndex = ADC_BUFFER_SIZE - 1;  // latest sample index
 volatile uint32_t ADC_counts = 0;
 volatile uint16_t gADCBuffer[ADC_BUFFER_SIZE];           // circular buffer
@@ -162,13 +163,14 @@ void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
     }
 
     GrContextForegroundSet(&sContext, ClrRed); // yellow text
+
     float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
 
     int x;
     for(x=0; x < windowWidth; x++){
         float vin = (float)scopeBuffer[x] *(3.3/4096.0);
         int y = LCD_VERTICAL_MAX/2- (int)roundf(fScale * ((int)scopeBuffer[x] - ADC_OFFSET));
-        GrLineDrawV(&sContext, x, y, y+1);
+        GrLineDrawV(&sContext, x, y, y-1);
     }
 
 //    GrContextForegroundSet(&sContext, ClrYellow); // yellow text
