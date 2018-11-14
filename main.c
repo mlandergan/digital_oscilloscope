@@ -33,11 +33,11 @@ volatile char fifo[FIFO_SIZE];  // FIFO storage array
 volatile int fifo_head = 0; // index of the first item in the FIFO
 volatile int fifo_tail = 0; // index one step past the last item
 
-char tmp;
-bool risingEdge = false; // TODO: make this be read from button
+// display variables
+bool risingEdge = false;
 uint32_t indexVolts = 3;
 const char * const gVoltageScaleStr[] = {"100 mV", "200 mV", "500 mV", "1 V"};
-float fVoltsPerDiv[] = {0.1, 0.2, 0.5, 1.0}; // Volts TODO: make this be adjusted by button
+float fVoltsPerDiv[] = {0.1, 0.2, 0.5, 1.0};
 
 
 // ADC variables
@@ -55,11 +55,18 @@ uint16_t scopeBuffer[128];
 uint32_t gSystemClock; // [Hz] system clock frequency
 volatile uint32_t gTime = 8345; // time in hundredths of a second
 
-// function prototypes
+// CPU load counters
+uint32_t count_unloaded = 0;
+uint32_t count_loaded = 0;
+float cpu_load = 0.0;
+
 int binaryConversion(int num);
 void triggerWindow(void);
-void render(char* buttonBuff, char* frequencyBuff, tContext sContext);
+void render(tContext sContext);
 void readButtonFifo(void);
+uint32_t cpu_load_count(void);
+void drawEdge(tContext sContext);
+
 
 int binaryConversion(int num){
     if(num==0){
@@ -87,9 +94,14 @@ int main(void)
     GrContextInit(&sContext, &g_sCrystalfontz128x128); // Initialize the grlib graphics context
     GrContextFontSet(&sContext, &g_sFontFixed6x8); // select font
 
+    // initialize timer 3 in one-shot mode for polled timing
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER3);
+    TimerDisable(TIMER3_BASE, TIMER_BOTH);
+    TimerConfigure(TIMER3_BASE, TIMER_CFG_ONE_SHOT);
+    TimerLoadSet(TIMER3_BASE, TIMER_A, gSystemClock/100-1); // 10 msec interval
 
-    uint32_t time;  // local copy of gTime
-    char str[50];   // string buffer
+    count_unloaded = cpu_load_count();
+
     char buttonBuff[50];
     char frequencyBuff[50];
     // full-screen rectangle
@@ -103,11 +115,13 @@ int main(void)
     GrContextFontSet(&sContext, &g_sFontFixed6x8); // select font
 
     while (true) {
+        count_loaded = cpu_load_count();
+        cpu_load = (1.0f - (float)count_loaded/count_unloaded)*100.0; // compute CPU load
         GrContextForegroundSet(&sContext, ClrBlack);
         GrRectFill(&sContext, &rectFullScreen); // fill screen with black
         readButtonFifo();
         triggerWindow();
-        render(&buttonBuff, &frequencyBuff, sContext);
+        render(sContext);
     }
 }
 
@@ -123,12 +137,12 @@ void readButtonFifo(){
         else if(buttonIDResult == '3'){
             risingEdge = 0;
         }
-        else if(buttonIDResult == '7'){// Increment volts per division
-             if(indexVolts != 4){
+        else if(buttonIDResult == '8'){// Increment volts per division
+             if(indexVolts != 3){
                  indexVolts++;
              }
         }
-        else if(buttonIDResult == '8'){
+        else if(buttonIDResult == '7'){
             if(indexVolts != 0){
                 indexVolts--;
             }
@@ -169,7 +183,7 @@ void triggerWindow(){
 }
 
 
-void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
+void render(tContext sContext){
 
     GrContextForegroundSet(&sContext, 0xFF);
     int i;
@@ -189,21 +203,60 @@ void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
         GrLineDrawV(&sContext, x, y, y-1);
     }
 
-    char risingEdgeBuffer[50];
-    snprintf(risingEdgeBuffer, sizeof(risingEdgeBuffer), "Rising Edge Bool: %d", risingEdge);
+//    char risingEdgeBuffer[50];
+//    snprintf(risingEdgeBuffer, sizeof(risingEdgeBuffer), "Rising Edge Bool: %d", risingEdge);
 
-//    char buttonResult[50];
-//    snprintf(buttonResult, sizeof(buttonResult), "button ID: %c", buttonIDResult);
+    char timeScaleBuff[10];
+    snprintf(timeScaleBuff, sizeof(timeScaleBuff), " %d us", PIXELS_PER_DIV);
+
+    char cpuLoadDisplayBuff[50];
+    snprintf(cpuLoadDisplayBuff, sizeof(cpuLoadDisplayBuff), "CPU load = %01f%%", cpu_load);
+
+    char voltageDisplayBuff[50];
+    snprintf(voltageDisplayBuff, sizeof(voltageDisplayBuff), "%s", gVoltageScaleStr[indexVolts]);
+
+    GrLineDrawV(&sContext, i * ((LCD_HORIZONTAL_MAX/7)) + (LCD_HORIZONTAL_MAX/14), 0, LCD_VERTICAL_MAX);
+    GrLineDrawH(&sContext, 0, LCD_HORIZONTAL_MAX, i * (LCD_VERTICAL_MAX/7)+ (LCD_HORIZONTAL_MAX/14));
 
     GrContextForegroundSet(&sContext, ClrYellow); // yellow text
-    GrStringDraw(&sContext, risingEdgeBuffer, -1, 0, 0, false);
-//    GrStringDraw(&sContext, buttonResult, -1, 0, 30, false);
 
-//    GrStringDraw(&scopeBuffer, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
-//    GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
-//    GrStringDraw(&sContext, frequencyBuff, /*length*/ -1, /*x*/ 0, /*y*/ 80, /*opaque*/ false);
+    GrStringDraw(&sContext, cpuLoadDisplayBuff, /*length*/ -1, /*x*/ 0, /*y*/ 120, /*opaque*/ false);
+    GrStringDraw(&sContext, timeScaleBuff, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
+    GrStringDraw(&sContext, voltageDisplayBuff, /*length*/ -1, /*x*/ 50, /*y*/ 0, /*opaque*/ false);
+
+    // Draw the rising/falling edge
+    drawEdge(sContext);
+
     GrFlush(&sContext); // flush the frame buffer to the LCD
 
+}
+
+void drawEdge(tContext sContext){
+    GrLineDrawV(&sContext, 100, 10, 0);
+    if(risingEdge){
+        GrLineDrawH(&sContext, 90, 100, 10);
+        GrLineDrawH(&sContext, 100, 110, 0);
+        GrLineDraw(&sContext, 97, 8, 100, 3);
+        GrLineDraw(&sContext, 103, 8,100, 3);
+    }
+    else{
+        GrLineDrawH(&sContext, 90, 100, 0);
+        GrLineDrawH(&sContext, 100, 110, 10);
+        GrLineDraw(&sContext, 97, 2, 100, 7);
+        GrLineDraw(&sContext, 103, 2, 100, 7);
+    }
+
+}
+
+
+uint32_t cpu_load_count(void)
+{
+    uint32_t i = 0;
+    TimerIntClear(TIMER3_BASE, TIMER_TIMA_TIMEOUT);
+    TimerEnable(TIMER3_BASE, TIMER_A); // start one-shot timer
+    while (!(TimerIntStatus(TIMER3_BASE, false) & TIMER_TIMA_TIMEOUT))
+        i++;
+    return i;
 }
 
 
