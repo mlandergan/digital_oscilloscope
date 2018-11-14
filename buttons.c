@@ -35,7 +35,7 @@ extern volatile int fifo_tail; // index one step past the last item
 
 // put data into the FIFO, skip if full
 // returns 1 on success, 0 if FIFO was full
-int fifo_put(uint32_t data)
+int fifo_put(char data)
 {
     int new_tail = fifo_tail + 1;
     if (new_tail >= FIFO_SIZE) new_tail = 0; // wrap around
@@ -49,7 +49,7 @@ int fifo_put(uint32_t data)
 
 // get data from the FIFO
 // returns 1 on success, 0 if FIFO was empty
-int fifo_get(uint32_t *data)
+int fifo_get(char *data)
 {
     if (fifo_head != fifo_tail) {   // if the FIFO is not empty
         *data = fifo[fifo_head];    // read data from the FIFO
@@ -205,8 +205,17 @@ void ButtonISR(void) {
     uint32_t presses = ~old_buttons & gButtons;   // detect button presses (transitions from not pressed to pressed)
     presses |= ButtonAutoRepeat();      // autorepeat presses if a button is held long enough
 
-    fifo_put(presses);
-
+    if(presses != 0){
+        char buttonID = 0x00;
+        int i;
+        for(i=0; i < 9; i++){
+            if (0x01 & (presses >> i) == 0x01){
+                buttonID = (char) (i + 48);
+                break;
+            }
+        }
+        fifo_put(buttonID);
+    }
     static bool tic = false;
     static bool running = true;
 

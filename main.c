@@ -28,13 +28,19 @@
 #define ADC_BUFFER_WRAP(i) ((i) & (ADC_BUFFER_SIZE - 1)) // index wrapping macro
 #define FIFO_SIZE 11        // FIFO capacity is 1 item fewer
 
-volatile uint32_t fifo[FIFO_SIZE];  // FIFO storage array
+// circular fifo for buttons
+volatile char fifo[FIFO_SIZE];  // FIFO storage array
 volatile int fifo_head = 0; // index of the first item in the FIFO
 volatile int fifo_tail = 0; // index one step past the last item
 
-bool risingEdge = true; // TODO: make this be read from button
-uint16_t fVoltsPerDiv = 2; // Volts TODO: make this be adjusted by button
+char tmp;
+bool risingEdge = false; // TODO: make this be read from button
+uint32_t indexVolts = 3;
+const char * const gVoltageScaleStr[] = {"100 mV", "200 mV", "500 mV", "1 V"};
+float fVoltsPerDiv[] = {0.1, 0.2, 0.5, 1.0}; // Volts TODO: make this be adjusted by button
 
+
+// ADC variables
 volatile int32_t gADCBufferIndex = ADC_BUFFER_SIZE - 1;  // latest sample index
 volatile uint32_t ADC_counts = 0;
 volatile uint16_t gADCBuffer[ADC_BUFFER_SIZE];           // circular buffer
@@ -45,18 +51,22 @@ uint32_t windowWidth = 128;
 uint32_t triggerLevel = 2048; // (1.63/3.3) * 4096 = 2048 ADC ticks
 uint16_t scopeBuffer[128];
 
+// variables to keep track of time
 uint32_t gSystemClock; // [Hz] system clock frequency
 volatile uint32_t gTime = 8345; // time in hundredths of a second
-int binary_conversion(int num);
+
+// function prototypes
+int binaryConversion(int num);
 void triggerWindow(void);
 void render(char* buttonBuff, char* frequencyBuff, tContext sContext);
+void readButtonFifo(void);
 
-int binary_conversion(int num){
+int binaryConversion(int num){
     if(num==0){
         return 0;
     }
     else
-        return(num%2+10*binary_conversion(num/2));
+        return(num%2+10*binaryConversion(num/2));
 }
 
 int main(void)
@@ -95,29 +105,36 @@ int main(void)
     while (true) {
         GrContextForegroundSet(&sContext, ClrBlack);
         GrRectFill(&sContext, &rectFullScreen); // fill screen with black
-
-        time = gTime; // read shared global only once
-        uint32_t fracSecond = time % 100;
-        uint32_t second = (time / 100) % 60;
-        uint32_t min = (time /100) / 60;
+        readButtonFifo();
         triggerWindow();
-
-       // snprintf(str, sizeof(str), "Time = %02u:%02u:%02u", min,second,fracSecond); // convert time to string
-
-//        int bin = binary_conversion(gButtons); // convert gButtons into binary
-//        snprintf(buttonBuff, sizeof(buttonBuff), "Button = %09u",bin);
-//
-//         // sample -> scopeBuffer
-//        uint16_t sample = gADCBuffer[8];
-//        float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
-//        float vin = (float)sample *(3.3/4096.0);
-//        int y = LCD_VERTICAL_MAX/2- (int)roundf(fScale * ((int)sample - ADC_OFFSET));
-//        snprintf(frequencyBuff, sizeof(frequencyBuff), "Sample = %f", vin);
-
         render(&buttonBuff, &frequencyBuff, sContext);
     }
 }
 
+// read button FIFO, update risingEdge and fVoltsPerDiv variables
+void readButtonFifo(){
+    char buttonIDResult;
+    int success = fifo_get(&buttonIDResult);
+    if(success){
+        // update globals
+        if(buttonIDResult == '2'){
+            risingEdge = 1;
+        }
+        else if(buttonIDResult == '3'){
+            risingEdge = 0;
+        }
+        else if(buttonIDResult == '7'){// Increment volts per division
+             if(indexVolts != 4){
+                 indexVolts++;
+             }
+        }
+        else if(buttonIDResult == '8'){
+            if(indexVolts != 0){
+                indexVolts--;
+            }
+        }
+   }
+}
 
 void triggerWindow(){
     triggerIndex = ADC_BUFFER_WRAP(gADCBufferIndex - (windowWidth/2));
@@ -127,9 +144,7 @@ void triggerWindow(){
 
     // search for trigger
     while((gADCBuffer[triggerIndex] != triggerLevel)){
-
         currSample = gADCBuffer[triggerIndex];
-
         if(risingEdge){
             if(counts == (ADC_BUFFER_SIZE/2) || (prevSample > triggerLevel && currSample <= triggerLevel)){
                 break;
@@ -153,6 +168,7 @@ void triggerWindow(){
     }
 }
 
+
 void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
 
     GrContextForegroundSet(&sContext, 0xFF);
@@ -164,7 +180,7 @@ void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
 
     GrContextForegroundSet(&sContext, ClrRed); // yellow text
 
-    float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
+    float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv[indexVolts]);
 
     int x;
     for(x=0; x < windowWidth; x++){
@@ -173,8 +189,17 @@ void render(char* buttonBuff, char* frequencyBuff, tContext sContext){
         GrLineDrawV(&sContext, x, y, y-1);
     }
 
-//    GrContextForegroundSet(&sContext, ClrYellow); // yellow text
-////        GrStringDraw(&scopeBuffer, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
+    char risingEdgeBuffer[50];
+    snprintf(risingEdgeBuffer, sizeof(risingEdgeBuffer), "Rising Edge Bool: %d", risingEdge);
+
+//    char buttonResult[50];
+//    snprintf(buttonResult, sizeof(buttonResult), "button ID: %c", buttonIDResult);
+
+    GrContextForegroundSet(&sContext, ClrYellow); // yellow text
+    GrStringDraw(&sContext, risingEdgeBuffer, -1, 0, 0, false);
+//    GrStringDraw(&sContext, buttonResult, -1, 0, 30, false);
+
+//    GrStringDraw(&scopeBuffer, str, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
 //    GrStringDraw(&sContext, buttonBuff, /*length*/ -1, /*x*/ 0, /*y*/ 50, /*opaque*/ false);
 //    GrStringDraw(&sContext, frequencyBuff, /*length*/ -1, /*x*/ 0, /*y*/ 80, /*opaque*/ false);
     GrFlush(&sContext); // flush the frame buffer to the LCD
