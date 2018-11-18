@@ -29,11 +29,6 @@ void ADC1Init(void)
     IntEnable(INT_ADC1SS0);                                                // enable ADC1 sequence 0 interrupt in int. controller
 }
 
-/*
-     ADCProcessorTrigger(ADC1_BASE, 0);          // trigger the ADC sample sequence from circuit
-     while(!ADCIntStatus(ADC1_BASE, 0, false));  // wait until the sample sequence has completed
-     ADCSequenceDataGet(ADC1_BASE, 0, ADC_counts);// retrieve ADC counts data
- */
 
 void ADC_ISR(void)
 {
@@ -43,11 +38,10 @@ void ADC_ISR(void)
         ADC1_OSTAT_R = ADC_OSTAT_OV0;   // clear overflow condition
     }
 
-    //ADCSequenceDataGet(ADC1_BASE, 0, &ADC_counts);// retrieve ADC counts data
-    ADC_counts = ADC1_SSFIFO0_R;
+    ADC_counts = ADC1_SSFIFO0_R; // read ADC1 FIFO register direcly 
 
     gADCBuffer[
                gADCBufferIndex = ADC_BUFFER_WRAP(gADCBufferIndex + 1)
-               ] = ADC_counts;               // read sample from the ADC1 sequence 0 FIFO
+               ] = ADC_counts;               // Put current ADC_counts into the gADCBuffer
 }
 

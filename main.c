@@ -4,6 +4,9 @@
  * ECE 3849 Lab 0 Starter Project
  * Gene Bogdanov    10/18/2017
  *
+ * Modified by Mark Landergan and Sean O'neil
+ * 11/18/2018 
+ *
  * This version is using the new hardware for B2017: the EK-TM4C1294XL LaunchPad with BOOSTXL-EDUMKII BoosterPack.
  *
  */
@@ -48,7 +51,7 @@ volatile uint16_t gADCBuffer[ADC_BUFFER_SIZE];           // circular buffer
 // Oscilloscope variables
 uint32_t triggerIndex;
 uint32_t windowWidth = 128;
-uint32_t triggerLevel = 2048; // (1.63/3.3) * 4096 = 2048 ADC ticks
+uint32_t triggerLevel = 2048; // (1.65/3.3) * 4096 = 2048 ADC ticks
 uint16_t scopeBuffer[128];
 
 // variables to keep track of time
@@ -151,7 +154,7 @@ void readButtonFifo(){
    }
 }
 
-// Algorithm to find the samples that should be displayed in the trigger window and save them to the scopw_buffer array
+// Algorithm to find the samples that should be displayed in the trigger window and save them to the scopeBuffer array
 void triggerWindow(){
     triggerIndex = ADC_BUFFER_WRAP(gADCBufferIndex - (windowWidth/2));
     uint16_t prevSample = gADCBuffer[triggerIndex];
@@ -179,7 +182,7 @@ void triggerWindow(){
     // Populate scopeBuffer[] with samples from gADCBuffer within half a window width of the trigger sample in either direction
     int currIndex;
     int ADCIndex = 0;
-    for(currIndex = 0; currIndex < windowWidth; currIndex++){ /// TODO: change 128
+    for(currIndex = 0; currIndex < windowWidth; currIndex++){ 
         ADCIndex = triggerIndex - (windowWidth/2) + currIndex;
         scopeBuffer[currIndex] = gADCBuffer[ADCIndex];
     }
@@ -206,9 +209,6 @@ void render(tContext sContext){
         int y = LCD_VERTICAL_MAX/2- (int)roundf(fScale * ((int)scopeBuffer[x] - ADC_OFFSET));
         GrLineDrawV(&sContext, x, y, y-1);
     }
-
-//    char risingEdgeBuffer[50];
-//    snprintf(risingEdgeBuffer, sizeof(risingEdgeBuffer), "Rising Edge Bool: %d", risingEdge);
 
     // Format text readout values into character buffers
     char timeScaleBuff[10];
@@ -237,6 +237,7 @@ void render(tContext sContext){
 
 }
 
+// function to draw either rising or falling edge
 void drawEdge(tContext sContext){
     GrLineDrawV(&sContext, 100, 10, 0);
     if(risingEdge){
@@ -254,7 +255,7 @@ void drawEdge(tContext sContext){
 
 }
 
-
+// function to calculate CPU load count
 uint32_t cpu_load_count(void)
 {
     uint32_t i = 0;

@@ -4,6 +4,9 @@
  *  Created on: Aug 12, 2012, modified 9/8/2017
  *      Author: Gene Bogdanov
  *
+ * Modified by Mark Landergan and Sean O'neil
+ * 11/18/2018 
+ *
  *  Button debouncer, calibrated for 200 samples/sec.
  */
 

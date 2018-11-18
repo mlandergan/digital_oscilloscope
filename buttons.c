@@ -3,6 +3,9 @@
  *
  *  Created on: Aug 12, 2012, modified 9/8/2017
  *      Author: Gene Bogdanov
+ * 
+ * Modified by Mark Landergan and Sean O'neil
+ * 11/18/2018 
  *
  * ECE 3849 Lab button handling
  */
@@ -53,17 +56,12 @@ int fifo_get(char *data)
 {
     if (fifo_head != fifo_tail) {   // if the FIFO is not empty
         *data = fifo[fifo_head];    // read data from the FIFO
-//        IntMasterDisable();
-//        delay_us(1000);
         if (fifo_head >= FIFO_SIZE) fifo_head = 0; // wrap around
         else fifo_head++;                // advance FIFO head index
-//        IntMasterEnable();
         return 1;                   // success
     }
     return 0;   // empty
 }
-
-
 
 // initialize all button and joystick handling hardware
 void ButtonInit(void)
