@@ -9,3 +9,5 @@ being able to be adjusted to scales of 100 mV, 200 mV, 500 mV, and 1V through th
 a timer that polls until timeout, incrementing a counter for each poll. Every time the timer is interrupted, it will count 
 fewer iterations, allowing us to calculate CPU load. Towards the bottom of the display, the calculated CPU load is displayed 
 as a percentage. 
+
+![alt text]https://i.imgur.com/qWKVWV4.jpg
