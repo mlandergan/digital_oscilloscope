@@ -114,6 +114,7 @@ int main(void)
 
     GrContextFontSet(&sContext, &g_sFontFixed6x8); // select font
 
+    // main loop
     while (true) {
         count_loaded = cpu_load_count();
         cpu_load = (1.0f - (float)count_loaded/count_unloaded)*100.0; // compute CPU load
@@ -130,7 +131,7 @@ void readButtonFifo(){
     char buttonIDResult;
     int success = fifo_get(&buttonIDResult);
     if(success){
-        // update globals
+        // check for different button IDs and set the appropriate global variables
         if(buttonIDResult == '2'){
             risingEdge = 1;
         }
@@ -150,6 +151,7 @@ void readButtonFifo(){
    }
 }
 
+// Algorithm to find the samples that should be displayed in the trigger window and save them to the scopw_buffer array
 void triggerWindow(){
     triggerIndex = ADC_BUFFER_WRAP(gADCBufferIndex - (windowWidth/2));
     uint16_t prevSample = gADCBuffer[triggerIndex];
@@ -174,10 +176,11 @@ void triggerWindow(){
         counts += 1;
     }
 
+    // Populate scopeBuffer[] with samples from gADCBuffer within half a window width of the trigger sample in either direction
     int currIndex;
     int ADCIndex = 0;
-    for(currIndex = 0; currIndex < 128; currIndex++){
-        ADCIndex = triggerIndex-64 + currIndex;
+    for(currIndex = 0; currIndex < windowWidth; currIndex++){ /// TODO: change 128
+        ADCIndex = triggerIndex - (windowWidth/2) + currIndex;
         scopeBuffer[currIndex] = gADCBuffer[ADCIndex];
     }
 }
@@ -185,6 +188,7 @@ void triggerWindow(){
 
 void render(tContext sContext){
 
+    // Drawing gridlines
     GrContextForegroundSet(&sContext, 0xFF);
     int i;
     for (i=0; i<7; i++){
@@ -192,8 +196,8 @@ void render(tContext sContext){
         GrLineDrawH(&sContext, 0, LCD_HORIZONTAL_MAX, i * (LCD_VERTICAL_MAX/7)+ (LCD_HORIZONTAL_MAX/14));
     }
 
+    // Draw waveform
     GrContextForegroundSet(&sContext, ClrRed); // yellow text
-
     float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv[indexVolts]);
 
     int x;
@@ -206,6 +210,7 @@ void render(tContext sContext){
 //    char risingEdgeBuffer[50];
 //    snprintf(risingEdgeBuffer, sizeof(risingEdgeBuffer), "Rising Edge Bool: %d", risingEdge);
 
+    // Format text readout values into character buffers
     char timeScaleBuff[10];
     snprintf(timeScaleBuff, sizeof(timeScaleBuff), " %d us", PIXELS_PER_DIV);
 
@@ -220,6 +225,7 @@ void render(tContext sContext){
 
     GrContextForegroundSet(&sContext, ClrYellow); // yellow text
 
+    // Draw text
     GrStringDraw(&sContext, cpuLoadDisplayBuff, /*length*/ -1, /*x*/ 0, /*y*/ 120, /*opaque*/ false);
     GrStringDraw(&sContext, timeScaleBuff, /*length*/ -1, /*x*/ 0, /*y*/ 0, /*opaque*/ false);
     GrStringDraw(&sContext, voltageDisplayBuff, /*length*/ -1, /*x*/ 50, /*y*/ 0, /*opaque*/ false);

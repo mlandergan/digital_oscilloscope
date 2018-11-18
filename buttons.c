@@ -209,13 +209,15 @@ void ButtonISR(void) {
         char buttonID = 0x00;
         int i;
         for(i=0; i < 9; i++){
-            if (0x01 & (presses >> i) == 0x01){
-                buttonID = (char) (i + 48);
+            if (0x01 & (presses >> i) == 0x01){ // check if the ith presses bitmask bit is high
+                buttonID = (char) (i + 48); // convert integer i to char 'i' to send into fifo
                 break;
             }
         }
-        fifo_put(buttonID);
+        fifo_put(buttonID); // put buttonID char in FIFO to be read out by readButtonFifo() in main
     }
+
+    // Keep track of time
     static bool tic = false;
     static bool running = true;
 
